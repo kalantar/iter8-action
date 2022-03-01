@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  pull_request:
+
+jobs:
+  load-test-action:
+    name: test load-test action
+    runs-on: ubuntu-latest
+    steps:
+
+    # Build new version as docker image and push to registry
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: run httpbin
+      run: |
+        set -e
+        docker pull kennethreitz/httpbin
+        docker run -p 80:80 kennethreitz/httpbin &
+        while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://127.0.0.1/get)" != "200" ]]; do
+          sleep 5; 
+        done;
+
+    - name: Prepare experiment-config.yaml file
+      run: |
+        cat << EOF > experiment-config.yaml
+          url: http://127.0.0.1/get
+          SLOs:
+            http/error-rate: 0
+            http/latency-mean: 100
+        EOF
+        cat experiment-config.yaml
+
+    - name: Run load test
+      uses: ./
+      with:
+        chart: load-test-http
+        valuesFile: experiment-config.yaml
